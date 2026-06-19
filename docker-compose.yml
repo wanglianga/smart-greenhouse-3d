@@ -1,0 +1,9 @@
+services:
+  greenhouse-3d:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    container_name: smart-greenhouse-3d
+    restart: unless-stopped
