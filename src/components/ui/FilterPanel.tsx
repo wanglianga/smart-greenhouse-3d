@@ -1,5 +1,6 @@
-import { ChevronDown, ChevronUp, X, Filter, Leaf, AlertTriangle, Warehouse, Package, Sprout } from 'lucide-react';
-import { useState } from 'react';
+import { ChevronDown, X, Filter, Leaf, AlertTriangle, Warehouse, Package, Sprout } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useGreenhouseStore } from '@/store';
 import {
   CROP_TYPES,
@@ -29,7 +30,7 @@ function FilterSection({ title, icon, children, defaultOpen = true }: FilterSect
           {title}
         </div>
         {open ? (
-          <ChevronUp className="w-4 h-4 text-slate-400" />
+          <ChevronDown className="w-4 h-4 text-slate-400 -rotate-180" />
         ) : (
           <ChevronDown className="w-4 h-4 text-slate-400" />
         )}
@@ -77,19 +78,34 @@ function Chip({ active, onClick, children, color = 'green' }: ChipProps) {
 
 export default function FilterPanel() {
   const [collapsed, setCollapsed] = useState(false);
-  const store = useGreenhouseStore();
-  const filters = store.filters;
-  const racks = store.racks;
-  const batches = store.batches;
-  const filteredCount = store.getFilteredTrays().length;
-  const totalCount = store.trays.length;
 
-  const hasActiveFilters =
-    filters.cropTypes.length > 0 ||
-    filters.anomalies.length > 0 ||
-    filters.rackIds.length > 0 ||
-    filters.batchIds.length > 0 ||
-    filters.growthStages.length > 0;
+  const filters = useGreenhouseStore((s) => s.filters);
+  const racks = useGreenhouseStore((s) => s.racks);
+  const batches = useGreenhouseStore((s) => s.batches);
+  const filteredTrayIds = useGreenhouseStore((s) => s.filteredTrayIds);
+  const trays = useGreenhouseStore((s) => s.trays);
+  const totalTrays = trays.length;
+  const toggleCropType = useGreenhouseStore((s) => s.toggleCropType);
+  const toggleAnomaly = useGreenhouseStore((s) => s.toggleAnomaly);
+  const toggleRackId = useGreenhouseStore((s) => s.toggleRackId);
+  const toggleBatchId = useGreenhouseStore((s) => s.toggleBatchId);
+  const toggleGrowthStage = useGreenhouseStore((s) => s.toggleGrowthStage);
+  const clearFilters = useGreenhouseStore((s) => s.clearFilters);
+
+  const filteredCount = useMemo(
+    () => (filteredTrayIds.size === 0 ? totalTrays : filteredTrayIds.size),
+    [filteredTrayIds, totalTrays]
+  );
+
+  const hasActiveFilters = useMemo(
+    () =>
+      filters.cropTypes.length > 0 ||
+      filters.anomalies.length > 0 ||
+      filters.rackIds.length > 0 ||
+      filters.batchIds.length > 0 ||
+      filters.growthStages.length > 0,
+    [filters]
+  );
 
   return (
     <div
@@ -107,7 +123,6 @@ export default function FilterPanel() {
           ${collapsed ? 'w-12' : 'w-72'}
         `}
       >
-        {/* 头部 */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-slate-700/50">
           {!collapsed && (
             <div className="flex items-center gap-2">
@@ -115,7 +130,7 @@ export default function FilterPanel() {
               <span className="text-white font-semibold">过滤器</span>
               {hasActiveFilters && (
                 <span className="px-1.5 py-0.5 bg-emerald-600 text-white text-xs rounded-full">
-                  {filteredCount}/{totalCount}
+                  {filteredCount}/{totalTrays}
                 </span>
               )}
             </div>
@@ -137,7 +152,7 @@ export default function FilterPanel() {
             {hasActiveFilters && (
               <div className="px-4 py-2 border-b border-slate-700/50">
                 <button
-                  onClick={() => store.clearFilters()}
+                  onClick={clearFilters}
                   className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-400 transition-colors"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -146,7 +161,6 @@ export default function FilterPanel() {
               </div>
             )}
 
-            {/* 过滤选项 */}
             <div className="flex-1 overflow-y-auto">
               <FilterSection title="作物类型" icon={<Leaf className="w-4 h-4 text-emerald-400" />}>
                 <div className="flex flex-wrap gap-1.5">
@@ -154,7 +168,7 @@ export default function FilterPanel() {
                     <Chip
                       key={crop}
                       active={filters.cropTypes.includes(crop)}
-                      onClick={() => store.toggleCropType(crop)}
+                      onClick={() => toggleCropType(crop)}
                       color="green"
                     >
                       {crop}
@@ -169,7 +183,7 @@ export default function FilterPanel() {
                     <Chip
                       key={anomaly}
                       active={filters.anomalies.includes(anomaly)}
-                      onClick={() => store.toggleAnomaly(anomaly)}
+                      onClick={() => toggleAnomaly(anomaly)}
                       color="red"
                     >
                       {ANOMALY_LABELS[anomaly]}
@@ -184,7 +198,7 @@ export default function FilterPanel() {
                     <Chip
                       key={rack.id}
                       active={filters.rackIds.includes(rack.id)}
-                      onClick={() => store.toggleRackId(rack.id)}
+                      onClick={() => toggleRackId(rack.id)}
                       color="blue"
                     >
                       {rack.name}
@@ -199,7 +213,7 @@ export default function FilterPanel() {
                     <Chip
                       key={batch.id}
                       active={filters.batchIds.includes(batch.id)}
-                      onClick={() => store.toggleBatchId(batch.id)}
+                      onClick={() => toggleBatchId(batch.id)}
                       color="amber"
                     >
                       {batch.id} · {batch.cropType}
@@ -214,7 +228,7 @@ export default function FilterPanel() {
                     <Chip
                       key={stage}
                       active={filters.growthStages.includes(stage)}
-                      onClick={() => store.toggleGrowthStage(stage)}
+                      onClick={() => toggleGrowthStage(stage)}
                       color="purple"
                     >
                       {GROWTH_STAGE_LABELS[stage]}
@@ -224,10 +238,10 @@ export default function FilterPanel() {
               </FilterSection>
             </div>
 
-            {/* 底部统计 */}
             <div className="px-4 py-3 border-t border-slate-700/50 bg-slate-900/50">
               <div className="text-xs text-slate-400">
-                当前显示 <span className="text-emerald-400 font-bold">{filteredCount}</span> / {totalCount} 个苗盘
+                当前显示{' '}
+                <span className="text-emerald-400 font-bold">{filteredCount}</span> / {totalTrays} 个苗盘
               </div>
             </div>
           </>

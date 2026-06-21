@@ -5,7 +5,6 @@ import * as THREE from 'three';
 import { RackData, TrayData } from '@/types';
 import { useGreenhouseStore } from '@/store';
 import TrayInstance from './TrayInstance';
-import TrayLabel from './TrayLabel';
 
 interface GreenhouseRackProps {
   rack: RackData;
@@ -15,10 +14,9 @@ export default function GreenhouseRack({ rack }: GreenhouseRackProps) {
   const lightRefs = useRef<THREE.PointLight[]>([]);
   const sensorRefs = useRef<THREE.Mesh[]>([]);
 
-  const trays = useGreenhouseStore((s) => s.trays.filter((t) => t.rackId === rack.id));
-  const filteredIds = useGreenhouseStore((s) =>
-    new Set(s.getFilteredTrays().map((t) => t.id))
-  );
+  const racksById = useGreenhouseStore((s) => s.traysByRackId);
+  const rackTrays = useMemo(() => racksById[rack.id] || [], [racksById, rack.id]);
+  const filteredTrayIds = useGreenhouseStore((s) => s.filteredTrayIds);
   const selectedTrayId = useGreenhouseStore((s) => s.selectedTrayId);
 
   useFrame((state) => {
@@ -44,18 +42,19 @@ export default function GreenhouseRack({ rack }: GreenhouseRackProps) {
   const trayPositions = useMemo(() => {
     const positions: { tray: TrayData; pos: [number, number, number] }[] = [];
     const trayWidth = (rackWidth - 0.4) / rack.traysPerLayer;
-    for (const tray of trays) {
+    for (const tray of rackTrays) {
       const y = (tray.layer - 1) * layerHeight + 0.4;
       const x = -rackWidth / 2 + 0.2 + trayWidth / 2 + tray.position * trayWidth;
       const z = 0;
       positions.push({ tray, pos: [x, y, z] });
     }
     return positions;
-  }, [trays, rackWidth, layerHeight, rack.traysPerLayer]);
+  }, [rackTrays, rackWidth, layerHeight, rack.traysPerLayer]);
+
+  const hasActiveFilter = filteredTrayIds.size > 0;
 
   return (
     <group position={[rack.positionX, 0, rack.positionZ]}>
-      {/* 层架立柱 */}
       {[-1, 1].map((sx) =>
         [-1, 1].map((sz) => (
           <mesh
@@ -69,12 +68,10 @@ export default function GreenhouseRack({ rack }: GreenhouseRackProps) {
         ))
       )}
 
-      {/* 层板与补光灯 */}
       {Array.from({ length: rack.layers }).map((_, i) => {
         const y = (i + 1) * layerHeight;
         return (
           <group key={`layer-${i}`}>
-            {/* 层板 */}
             <mesh position={[0, y - 0.05, 0]} receiveShadow castShadow>
               <boxGeometry args={[rackWidth, 0.1, rackDepth]} />
               <meshStandardMaterial
@@ -86,7 +83,6 @@ export default function GreenhouseRack({ rack }: GreenhouseRackProps) {
               />
             </mesh>
 
-            {/* 补光灯条 */}
             {[-1, 0, 1].map((lx) => (
               <mesh key={`light-bar-${i}-${lx}`} position={[lx * 1.5, y - 0.15, 0]}>
                 <boxGeometry args={[1.2, 0.08, 0.1]} />
@@ -98,7 +94,6 @@ export default function GreenhouseRack({ rack }: GreenhouseRackProps) {
               </mesh>
             ))}
 
-            {/* 补光灯光源 */}
             {[-1, 0, 1].map((lx, li) => (
               <pointLight
                 key={`light-${i}-${lx}`}
@@ -113,8 +108,7 @@ export default function GreenhouseRack({ rack }: GreenhouseRackProps) {
               />
             ))}
 
-            {/* 滴灌管 */}
-            <mesh position={[0, y - 0.25, -rackDepth / 2 + 0.1]}>
+            <mesh position={[0, y - 0.25, -rackDepth / 2 + 0.1]} rotation={[Math.PI / 2, 0, 0]}>
               <cylinderGeometry args={[0.03, 0.03, rackWidth, 8]} />
               <meshStandardMaterial
                 color="#1e3a5f"
@@ -122,23 +116,21 @@ export default function GreenhouseRack({ rack }: GreenhouseRackProps) {
                 transparent
                 opacity={0.7}
               />
-              <mesh rotation={[Math.PI / 2, 0, 0]} />
             </mesh>
             {Array.from({ length: rack.traysPerLayer }).map((_, ti) => {
-              const tx = -rackWidth / 2 + 0.2 + (rackWidth - 0.4) / rack.traysPerLayer / 2 +
-                ti * (rackWidth - 0.4) / rack.traysPerLayer;
+              const tx =
+                -rackWidth / 2 +
+                0.2 +
+                (rackWidth - 0.4) / rack.traysPerLayer / 2 +
+                ti * ((rackWidth - 0.4) / rack.traysPerLayer);
               return (
-                <mesh
-                  key={`drip-${i}-${ti}`}
-                  position={[tx, y - 0.25, -rackDepth / 2 + 0.1]}
-                >
+                <mesh key={`drip-${i}-${ti}`} position={[tx, y - 0.25, -rackDepth / 2 + 0.1]}>
                   <cylinderGeometry args={[0.015, 0.015, 0.2, 6]} />
                   <meshStandardMaterial color="#2563eb" transparent opacity={0.6} />
                 </mesh>
               );
             })}
 
-            {/* 传感器 */}
             <mesh
               ref={(el) => {
                 if (el) sensorRefs.current[i] = el;
@@ -156,23 +148,21 @@ export default function GreenhouseRack({ rack }: GreenhouseRackProps) {
         );
       })}
 
-      {/* 苗盘（使用实例化渲染优化） */}
       {trayPositions.map(({ tray, pos }) => {
-        const isFiltered = filteredIds.has(tray.id);
+        const isFiltered = filteredTrayIds.has(tray.id);
         const isSelected = selectedTrayId === tray.id;
         return (
           <TrayInstance
             key={tray.id}
             tray={tray}
             position={pos}
-            visible={filteredIds.size === 0 || isFiltered}
+            visible={!hasActiveFilter || isFiltered}
             isSelected={isSelected}
-            dimmed={filteredIds.size > 0 && !isFiltered}
+            dimmed={hasActiveFilter && !isFiltered}
           />
         );
       })}
 
-      {/* 层架名称标签 */}
       <Html
         position={[0, totalHeight + 0.5, 0]}
         center

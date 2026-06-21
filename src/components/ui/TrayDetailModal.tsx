@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { X, Calendar, Droplets, Sun, FlaskConical, AlertTriangle, Leaf, Sprout } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
-import { useGreenhouseStore } from '@/store';
+import { useShallow } from 'zustand/react/shallow';
+import { useGreenhouseStore, calcAnomalies } from '@/store';
 import { GROWTH_STAGE_LABELS, DISEASE_RISK_LABELS, ANOMALY_LABELS } from '@/types';
 
 interface MetricCardProps {
@@ -28,79 +30,92 @@ function MetricCard({ icon, label, value, status = 'normal' }: MetricCardProps) 
 }
 
 export default function TrayDetailModal() {
-  const { selectedTrayId, trays, showTrayDetail, setShowTrayDetail, setSelectedTray, getAnomalies } = useGreenhouseStore();
-  const tray = trays.find((t) => t.id === selectedTrayId);
+  const selectedTrayId = useGreenhouseStore((s) => s.selectedTrayId);
+  const trays = useGreenhouseStore((s) => s.trays);
+  const showTrayDetail = useGreenhouseStore((s) => s.showTrayDetail);
+  const setShowTrayDetail = useGreenhouseStore((s) => s.setShowTrayDetail);
+  const setSelectedTray = useGreenhouseStore((s) => s.setSelectedTray);
+
+  const tray = useMemo(
+    () => trays.find((t) => t.id === selectedTrayId) || null,
+    [trays, selectedTrayId]
+  );
+
+  const anomalies = useMemo(() => (tray ? calcAnomalies(tray) : []), [tray]);
+
+  const chartOption = useMemo(() => {
+    if (!tray) return {};
+    return {
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+        borderColor: '#334155',
+        textStyle: { color: '#e2e8f0' },
+      },
+      legend: {
+        data: ['湿度(%)', '光照(klux)', '温度(°C)', '营养液(ms/cm)'],
+        textStyle: { color: '#94a3b8', fontSize: 11 },
+        top: 0,
+      },
+      grid: { left: 40, right: 20, top: 40, bottom: 30 },
+      xAxis: {
+        type: 'category',
+        data: tray.history.map((h) => h.date.slice(5)),
+        axisLine: { lineStyle: { color: '#475569' } },
+        axisLabel: { color: '#94a3b8', fontSize: 10 },
+      },
+      yAxis: {
+        type: 'value',
+        splitLine: { lineStyle: { color: '#1e293b' } },
+        axisLabel: { color: '#94a3b8', fontSize: 10 },
+      },
+      series: [
+        {
+          name: '湿度(%)',
+          type: 'line',
+          smooth: true,
+          data: tray.history.map((h) => h.humidity),
+          lineStyle: { color: '#06b6d4', width: 2 },
+          itemStyle: { color: '#06b6d4' },
+          areaStyle: { color: 'rgba(6, 182, 212, 0.15)' },
+        },
+        {
+          name: '光照(klux)',
+          type: 'line',
+          smooth: true,
+          data: tray.history.map((h) => Math.round(h.light / 1000)),
+          lineStyle: { color: '#fbbf24', width: 2 },
+          itemStyle: { color: '#fbbf24' },
+        },
+        {
+          name: '温度(°C)',
+          type: 'line',
+          smooth: true,
+          data: tray.history.map((h) => h.temperature),
+          lineStyle: { color: '#f87171', width: 2 },
+          itemStyle: { color: '#f87171' },
+        },
+        {
+          name: '营养液(ms/cm)',
+          type: 'line',
+          smooth: true,
+          data: tray.history.map((h) => h.nutrient),
+          lineStyle: { color: '#a78bfa', width: 2 },
+          itemStyle: { color: '#a78bfa' },
+        },
+      ],
+    };
+  }, [tray]);
 
   if (!tray || !showTrayDetail) return null;
 
-  const anomalies = getAnomalies(tray);
-
-  const chartOption = {
-    backgroundColor: 'transparent',
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: 'rgba(15, 23, 42, 0.95)',
-      borderColor: '#334155',
-      textStyle: { color: '#e2e8f0' },
-    },
-    legend: {
-      data: ['湿度(%)', '光照(klux)', '温度(°C)', '营养液(ms/cm)'],
-      textStyle: { color: '#94a3b8', fontSize: 11 },
-      top: 0,
-    },
-    grid: { left: 40, right: 20, top: 40, bottom: 30 },
-    xAxis: {
-      type: 'category',
-      data: tray.history.map((h) => h.date.slice(5)),
-      axisLine: { lineStyle: { color: '#475569' } },
-      axisLabel: { color: '#94a3b8', fontSize: 10 },
-    },
-    yAxis: {
-      type: 'value',
-      splitLine: { lineStyle: { color: '#1e293b' } },
-      axisLabel: { color: '#94a3b8', fontSize: 10 },
-    },
-    series: [
-      {
-        name: '湿度(%)',
-        type: 'line',
-        smooth: true,
-        data: tray.history.map((h) => h.humidity),
-        lineStyle: { color: '#06b6d4', width: 2 },
-        itemStyle: { color: '#06b6d4' },
-        areaStyle: { color: 'rgba(6, 182, 212, 0.15)' },
-      },
-      {
-        name: '光照(klux)',
-        type: 'line',
-        smooth: true,
-        data: tray.history.map((h) => Math.round(h.light / 1000)),
-        lineStyle: { color: '#fbbf24', width: 2 },
-        itemStyle: { color: '#fbbf24' },
-      },
-      {
-        name: '温度(°C)',
-        type: 'line',
-        smooth: true,
-        data: tray.history.map((h) => h.temperature),
-        lineStyle: { color: '#f87171', width: 2 },
-        itemStyle: { color: '#f87171' },
-      },
-      {
-        name: '营养液(ms/cm)',
-        type: 'line',
-        smooth: true,
-        data: tray.history.map((h) => h.nutrient),
-        lineStyle: { color: '#a78bfa', width: 2 },
-        itemStyle: { color: '#a78bfa' },
-      },
-    ],
-  };
-
-  const getHumidityStatus = () => tray.humidity < 55 ? 'warning' : tray.humidity > 90 ? 'danger' : 'normal';
-  const getLightStatus = () => tray.light < 10000 ? 'warning' : 'normal';
-  const getNutrientStatus = () => tray.nutrient < 1.2 ? 'warning' : tray.nutrient > 2.8 ? 'danger' : 'normal';
-  const getDiseaseStatus = () => tray.diseaseRisk === 'high' ? 'danger' : tray.diseaseRisk === 'medium' ? 'warning' : 'normal';
+  const getHumidityStatus = () => (tray.humidity < 55 ? 'warning' : tray.humidity > 90 ? 'danger' : 'normal');
+  const getLightStatus = () => (tray.light < 10000 ? 'warning' : 'normal');
+  const getNutrientStatus = () =>
+    tray.nutrient < 1.2 ? 'warning' : tray.nutrient > 2.8 ? 'danger' : 'normal';
+  const getDiseaseStatus = () =>
+    tray.diseaseRisk === 'high' ? 'danger' : tray.diseaseRisk === 'medium' ? 'warning' : 'normal';
 
   const handleClose = () => {
     setShowTrayDetail(false);
@@ -108,10 +123,7 @@ export default function TrayDetailModal() {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      onClick={handleClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={handleClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
         className="relative w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-2xl
@@ -119,7 +131,6 @@ export default function TrayDetailModal() {
           animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 头部 */}
         <div className="flex items-start justify-between p-5 border-b border-slate-700/50 bg-gradient-to-r from-emerald-950/50 to-slate-900/50">
           <div>
             <div className="flex items-center gap-3 mb-1">
@@ -166,9 +177,7 @@ export default function TrayDetailModal() {
           </div>
         )}
 
-        {/* 内容区 */}
         <div className="p-5 overflow-y-auto max-h-[calc(90vh-180px)]">
-          {/* 指标卡片 */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
             <MetricCard
               icon={<Droplets className="w-3.5 h-3.5" />}
@@ -196,7 +205,6 @@ export default function TrayDetailModal() {
             />
           </div>
 
-          {/* 照片占位 */}
           <div className="mb-5">
             <h3 className="text-sm font-semibold text-slate-300 mb-2 flex items-center gap-1.5">
               <Leaf className="w-4 h-4 text-emerald-400" />
@@ -211,16 +219,13 @@ export default function TrayDetailModal() {
                 >
                   <div className="text-center">
                     <Leaf className="w-8 h-8 text-emerald-500/40 mx-auto mb-1" />
-                    <span className="text-xs text-emerald-400/50">
-                      {tray.cropType}
-                    </span>
+                    <span className="text-xs text-emerald-400/50">{tray.cropType}</span>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* 历史曲线 */}
           <div>
             <h3 className="text-sm font-semibold text-slate-300 mb-2">历史数据曲线</h3>
             <div className="h-64 rounded-lg bg-slate-950/60 border border-slate-800 p-2">
@@ -228,6 +233,8 @@ export default function TrayDetailModal() {
                 option={chartOption}
                 style={{ height: '100%', width: '100%' }}
                 opts={{ renderer: 'canvas' }}
+                notMerge
+                lazyUpdate
               />
             </div>
           </div>

@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { TrayData } from '@/types';
-import { useGreenhouseStore } from '@/store';
+import { useGreenhouseStore, calcAnomalies } from '@/store';
 
 interface TrayInstanceProps {
   tray: TrayData;
@@ -16,9 +16,8 @@ interface TrayInstanceProps {
 export default function TrayInstance({ tray, position, visible, isSelected, dimmed }: TrayInstanceProps) {
   const alertRef = useRef<THREE.Mesh>(null);
   const setSelectedTray = useGreenhouseStore((s) => s.setSelectedTray);
-  const getAnomalies = useGreenhouseStore((s) => s.getAnomalies);
 
-  const anomalies = getAnomalies(tray);
+  const anomalies = useMemo(() => calcAnomalies(tray), [tray]);
   const hasAlert = anomalies.length > 0;
 
   useFrame((state) => {
@@ -55,7 +54,6 @@ export default function TrayInstance({ tray, position, visible, isSelected, dimm
 
   return (
     <group position={position}>
-      {/* 苗盘底座 */}
       <mesh
         position={[0, 0.02, 0]}
         onClick={(e) => {
@@ -82,22 +80,15 @@ export default function TrayInstance({ tray, position, visible, isSelected, dimm
         />
       </mesh>
 
-      {/* 植物 - 使用实例化模拟多株植物 */}
       {!dimmed && (
         <group position={[0, 0.04, 0]}>
           {Array.from({ length: 4 }).map((_, i) =>
             Array.from({ length: 5 }).map((_, j) => (
               <mesh
                 key={`plant-${i}-${j}`}
-                position={[
-                  -0.3 + i * 0.2,
-                  plantHeight / 2,
-                  -0.45 + j * 0.2,
-                ]}
+                position={[-0.3 + i * 0.2, plantHeight / 2, -0.45 + j * 0.2]}
               >
-                <cylinderGeometry
-                  args={[0.02, 0.04, plantHeight, 6]}
-                />
+                <cylinderGeometry args={[0.02, 0.04, plantHeight, 6]} />
                 <meshStandardMaterial
                   color={plantColor}
                   transparent
@@ -108,31 +99,21 @@ export default function TrayInstance({ tray, position, visible, isSelected, dimm
               </mesh>
             ))
           )}
-          {/* 顶部叶丛 */}
           {Array.from({ length: 3 }).map((_, i) =>
             Array.from({ length: 4 }).map((_, j) => (
               <mesh
                 key={`leaf-${i}-${j}`}
-                position={[
-                  -0.25 + i * 0.25,
-                  plantHeight + 0.02,
-                  -0.35 + j * 0.23,
-                ]}
+                position={[-0.25 + i * 0.25, plantHeight + 0.02, -0.35 + j * 0.23]}
                 rotation={[Math.PI / 4, i * 0.5, j * 0.3]}
               >
                 <sphereGeometry args={[0.08, 8, 6]} />
-                <meshStandardMaterial
-                  color={plantColor}
-                  transparent
-                  opacity={0.7}
-                />
+                <meshStandardMaterial color={plantColor} transparent opacity={0.7} />
               </mesh>
             ))
           )}
         </group>
       )}
 
-      {/* 告警光晕 */}
       {hasAlert && !dimmed && (
         <mesh ref={alertRef} position={[0, 0.3, 0]}>
           <sphereGeometry args={[0.6, 16, 16]} />
@@ -147,7 +128,6 @@ export default function TrayInstance({ tray, position, visible, isSelected, dimm
         </mesh>
       )}
 
-      {/* 选中指示器 */}
       {isSelected && (
         <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[0.55, 0.65, 32]} />
@@ -155,7 +135,6 @@ export default function TrayInstance({ tray, position, visible, isSelected, dimm
         </mesh>
       )}
 
-      {/* 苗盘数据标签 */}
       {!dimmed && (
         <Html
           position={[0, plantHeight + 0.4, 0]}
